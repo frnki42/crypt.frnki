@@ -24,7 +24,7 @@ jobs:
       uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
     
@@ -40,7 +40,7 @@ jobs:
       if: matrix.os == 'windows-latest'
       run: |
         if (Test-Path "dist/crypt.frnki.exe") {
-          # Already has .exe extension
+          Write-Host "Already has .exe extension"
         } else {
           Rename-Item "dist/crypt.frnki" "dist/crypt.frnki.exe"
         }
@@ -51,6 +51,7 @@ jobs:
       with:
         name: crypt.frnki-${{ matrix.name }}
         path: dist/${{ matrix.artifact }}
+        retention-days: 30
         
     - name: Upload to release
       if: startsWith(github.ref, 'refs/tags/')
