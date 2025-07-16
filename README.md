@@ -51,6 +51,13 @@ favicon.{ico,png}   # Application icons
 - Per-file error reporting
 - Show/hide passphrase toggles
 
+### Attack Resistance
+**Brute Force Protection (vs. GPU farms):**
+- Weak passphrases: Seconds (dictionary attacks)
+- 8-character mixed: ~10-25 years (small rig)
+- 12-character mixed: ~28-70 million years (large farm)
+- **12-word phrases: >> Age of universe** (computationally infeasible)
+
 ## Usage Protocol
 
 1. **Load:** Select target files
