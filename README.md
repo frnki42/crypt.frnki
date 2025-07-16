@@ -1,13 +1,12 @@
-# crypt.frnki v1.0.0 - USB Portable Edition
+# crypt.frnki v1.0.1
 
-**Secure file encryption tool with all critical security vulnerabilities fixed.** 🔒
+**Military-grade file encryption with zero dependencies.**
 
-## Quick Start
+## Quick Deploy
 
 ### Linux
 ```bash
-chmod +x crypt.frnki
-./crypt.frnki
+chmod +x crypt.frnki && ./crypt.frnki
 ```
 
 ### Windows
@@ -15,75 +14,98 @@ chmod +x crypt.frnki
 crypt.frnki.exe
 ```
 
-**No installation required.** Bundled dependencies ensure offline, portable operation.
+No installation. No telemetry. No network calls.
 
-## Repository Contents
+## Repository Structure
 
-- `crypt_frnki_standalone.py` - Source code (~24KB)
-- `standalone.spec` - PyInstaller build config
-- `favicon.ico` / `favicon.png` - Icons
-- `README.md` - Documentation
-- `LICENSE` - MIT License
+```
+crypt.frnki.py      # Source code (~27KB)
+build.spec          # PyInstaller configuration
+favicon.{ico,png}   # Application icons
+```
 
-Pre-built executables available in GitHub Releases:
-- `crypt.frnki` - Linux (~26MB)
-- `crypt.frnki.exe` - Windows (~26MB)
+**Releases:** Pre-built binaries available on GitHub
+- `crypt.frnki` (Linux x64, ~26MB)
+- `crypt.frnki.exe` (Windows x64, ~26MB)
 
-## Security Features
+## Security Implementation
 
-✅ **Vulnerabilities Fixed:**
-- Random per-file salts
-- Path traversal protection
-- Input validation
-- Secure memory handling
-- Atomic operations
-- Generic error messages
+### Cryptographic Stack
+- **Cipher:** ChaCha20-Poly1305 AEAD (256-bit keys)
+- **KDF:** Argon2id (4 iterations, 128MB memory, 4 threads)
+- **Nonces:** Cryptographically secure random per-chunk
+- **Authentication:** Built-in tamper detection
 
-✅ **Cryptography:**
-- ChaCha20-Poly1305 AEAD (256-bit)
-- Argon2id KDF (64MB mem, 3 iters, 4 parallel)
-- Unique nonces
-- Tamper detection
+### Defensive Measures
+- Random per-file salts (no rainbow tables)
+- Path traversal sanitization
+- Input length validation
+- Secure memory clearing
+- Atomic file operations
+- Generic error responses
 
-## Usage
+### Recent Security Fixes (v1.0.1)
+- **Critical:** Fixed decompression bug causing data loss
+- Enhanced Argon2id parameters (+33% computation, +100% memory)
+- Passphrase strength validation
+- Per-file error reporting
+- Show/hide passphrase toggles
 
-1. Add files
-2. Enter/confirm passphrase 
-3. Select compression (None/Low/Medium/High), optional delete
-4. Encrypt/Decrypt
+## Usage Protocol
 
-Outputs: `encrypt_output/` (.frnki files), `decrypt_output/` (decrypted files)
+1. **Load:** Select target files
+2. **Authenticate:** Enter passphrase (confirmed)
+3. **Configure:** Compression level, deletion options
+4. **Execute:** Encrypt or decrypt operation
 
-## Best Practices
+**Output directories:**
+- `encrypt_output/` → `.frnki` encrypted files
+- `decrypt_output/` → Original files restored
 
-- Strong passphrases: Mixed case, numbers, symbols
-- Backup originals
-- No recovery: Remember passphrases
-- Verify decryption
+## Operational Security
 
-## Technical Details
+**Passphrase Guidelines:**
+- Minimum 12 characters recommended
+- Use high-entropy sources (password managers)
+- No passphrase recovery mechanism exists
 
-- Custom format with validation
-- 4KB streaming
-- zlib compression (optional)
-- Offline, cross-platform
-- No network/install
+**File Handling:**
+- Verify decryption before deleting originals
+- Test with non-critical files first
+- Keep encrypted backups in separate locations
 
-## Requirements
+## Technical Specifications
 
-- Linux: x86_64
-- Windows: 64-bit, Win7+
+**File Format:** Custom binary with integrity validation  
+**Streaming:** 4KB chunks (memory-efficient for large files)  
+**Compression:** Optional zlib (None/Low/Medium/High)  
+**Platform:** Cross-platform Python 3.8+  
+**Dependencies:** Bundled (cryptography, argon2, PIL)
+
+## System Requirements
+
+**Linux:** x86_64, glibc 2.17+  
+**Windows:** x64, Windows 7 SP1+  
 
 ## Troubleshooting
 
-- Linux: `chmod +x`, check `file crypt.frnki`
-- Windows: 64-bit OS
-- AV false positives: Add exception
+**Permission denied (Linux):**
+```bash
+chmod +x crypt.frnki
+```
+
+**False positive detection:**
+Add binary to antivirus exceptions. PyInstaller executables commonly trigger heuristics.
+
+**File type verification:**
+```bash
+file crypt.frnki  # Should show: ELF 64-bit LSB executable
+```
 
 ## License
 
-Educational/security use only. See LICENSE (MIT).
+MIT License. Educational and defensive security use.
 
 ---
 
-⚠️ **Important**: Strong encryption—no recovery. Backup and verify.
+⚠️ **OPSEC Warning:** Strong encryption = no recovery. Verify before deleting originals.

@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """
-crypt.frnki v1.1.1 - Standalone Version
-Secure File Encryption Tool - Single file for USB distribution
+crypt.frnki v1.0.1
+Secure File Encryption Tool
 
-All security vulnerabilities fixed:
-- Random per-file salts (no hardcoded salt)
-- Path traversal protection
-- Input validation & memory security
-- Production-ready security hardening
+Security fixes and improvements:
+- Fixed critical decompression bug preventing file recovery
+- Enhanced Argon2id parameters (4 iterations, 128MB memory)
+- Added passphrase strength validation
+- Improved error handling and user experience
+- Show/hide passphrase toggles
+- Per-file failure reporting
 """
 
 import sys
@@ -33,6 +35,7 @@ except ImportError:
     PIL_AVAILABLE = False
 
 MAGIC_NUMBER = 0xDEADBEEF
+VERSION = 1
 CHUNK_SIZE = 4096  # For streaming
 
 
@@ -86,12 +89,12 @@ def get_resource_path(resource_name):
 
 
 def derive_key(passphrase, salt):
-    """Derive encryption key using Argon2id"""
+    """Derive encryption key using Argon2id with improved parameters"""
     return hash_secret_raw(
         secret=passphrase.encode('utf-8'),
         salt=salt,
-        time_cost=3,  # Increased for better security
-        memory_cost=65536,  # 64 MB
+        time_cost=4,  # Increased for better security
+        memory_cost=131072,  # 128 MB
         parallelism=4,
         hash_len=32,
         type=Type.ID
@@ -111,9 +114,12 @@ def encrypt_file(in_path, out_path, passphrase, compress_level, progress_callbac
         name_data = struct.pack('<H', len(basename)) + basename.encode('utf-8')
         name_cipher = aead.encrypt(name_nonce, name_data, None)
 
+        flags = 1 if compress_level > 0 else 0  # Bit 0: compression enabled
+
         with open(in_path, 'rb') as f_in, open(out_path, 'wb') as f_out:
             # Header
             f_out.write(struct.pack('<I', MAGIC_NUMBER))
+            f_out.write(struct.pack('<BB', VERSION, flags))
             f_out.write(salt)
             f_out.write(name_nonce)
             f_out.write(content_base_nonce)
@@ -123,10 +129,7 @@ def encrypt_file(in_path, out_path, passphrase, compress_level, progress_callbac
             f_out.write(name_cipher)
 
             # Streaming compress + encrypt content
-            if compress_level > 0:
-                compressor = zlib.compressobj(level=compress_level)
-            else:
-                compressor = None  # No compression
+            compressor = zlib.compressobj(level=compress_level) if compress_level > 0 else None
 
             total_size = Path(in_path).stat().st_size
             processed = 0
@@ -176,6 +179,14 @@ def decrypt_file(in_path, out_dir, passphrase, progress_callback=None):
             if magic != MAGIC_NUMBER:
                 return False
             
+            # Read version and flags
+            version_flags = f_in.read(2)
+            if len(version_flags) != 2:
+                return False
+            version, flags = struct.unpack('<BB', version_flags)
+            if version != VERSION:
+                return False
+            
             # Read header components with validation
             salt = f_in.read(16)
             if len(salt) != 16:
@@ -222,7 +233,8 @@ def decrypt_file(in_path, out_dir, passphrase, progress_callback=None):
             safe_name = sanitize_filename(orig_name)
             
             # Streaming decrypt + decompress content
-            decompressor = zlib.decompressobj() if True else None  # Assume compression; will fail if not
+            use_compression = bool(flags & 1)
+            decompressor = zlib.decompressobj() if use_compression else None
             Path(out_dir).mkdir(parents=True, exist_ok=True)
             final_out = Path(out_dir) / safe_name
             
@@ -231,17 +243,18 @@ def decrypt_file(in_path, out_dir, passphrase, progress_callback=None):
                 temp_path = Path(temp_file.name)
                 chunk_index = 0
                 total_size = Path(in_path).stat().st_size
-                processed = len(magic_bytes) + len(salt) + len(name_nonce) + len(content_base_nonce) + 4 + name_len
+                header_size = 4 + 2 + 16 + 12 + 8 + 4 + name_len
+                processed = header_size
                 
                 while True:
                     len_bytes = f_in.read(4)
                     if not len_bytes:
-                        try:
-                            if decompressor:
+                        if decompressor:
+                            try:
                                 decompressed = decompressor.flush()
                                 temp_file.write(decompressed)
-                        except zlib.error:
-                            return False
+                            except zlib.error:
+                                return False
                         break
                     
                     if len(len_bytes) != 4:
@@ -297,19 +310,21 @@ class EncryptionApp:
         self.root = root
         self.root.title("crypt.frnki")
         self.root.configure(bg="#282828")
-        self.root.geometry("600x450")  # Slightly taller for confirmation field
+        self.root.geometry("600x480")  # Slightly taller
         self.center_window()
         
         # Set dark title bar on Windows and icon
         set_dark_title_bar(self.root)
         self._set_window_icon()
         
+        # Initialize state variables first
+        self.file_paths = {}
+        self.show_pass = tk.IntVar(value=0)
+        self.show_confirm = tk.IntVar(value=0)
+        
         # Initialize GUI components
         self._setup_styles()
         self._create_widgets()
-        
-        # Initialize state
-        self.file_paths = {}
         
     def _set_window_icon(self):
         """Set the window icon if available"""
@@ -353,30 +368,40 @@ class EncryptionApp:
         self.file_list.pack(pady=5)
 
         # Passphrase section
-        tk.Label(self.root, text="Passphrase:", **label_opts).pack(pady=(10, 0))
-        self.pass_entry = tk.Entry(self.root, show="*", **entry_opts)
-        self.pass_entry.pack(pady=5)
+        pass_frame = tk.Frame(self.root, bg="#282828")
+        pass_frame.pack(pady=5)
+        tk.Label(pass_frame, text="Passphrase:", width=18, anchor="e", **label_opts).pack(side=tk.LEFT, padx=5)
+        self.pass_entry = tk.Entry(pass_frame, show="*", **entry_opts)
+        self.pass_entry.pack(side=tk.LEFT, padx=5)
+        tk.Checkbutton(pass_frame, text="Show", variable=self.show_pass, command=self._toggle_pass_show,
+                       bg="#282828", fg="#ebdbb2", activebackground="#282828", activeforeground="#98971a",
+                       highlightthickness=0, bd=0, selectcolor="#1e1e1e").pack(side=tk.LEFT, padx=5)
 
-        tk.Label(self.root, text="Confirm Passphrase:", **label_opts).pack(pady=(5, 0))
-        self.confirm_entry = tk.Entry(self.root, show="*", **entry_opts)
-        self.confirm_entry.pack(pady=5)
+        confirm_frame = tk.Frame(self.root, bg="#282828")
+        confirm_frame.pack(pady=5)
+        tk.Label(confirm_frame, text="Confirm Passphrase:", width=18, anchor="e", **label_opts).pack(side=tk.LEFT, padx=5)
+        self.confirm_entry = tk.Entry(confirm_frame, show="*", **entry_opts)
+        self.confirm_entry.pack(side=tk.LEFT, padx=5)
+        tk.Checkbutton(confirm_frame, text="Show", variable=self.show_confirm, command=self._toggle_confirm_show,
+                       bg="#282828", fg="#ebdbb2", activebackground="#282828", activeforeground="#98971a",
+                       highlightthickness=0, bd=0, selectcolor="#1e1e1e").pack(side=tk.LEFT, padx=5)
 
         # Options section
         options_frame = tk.Frame(self.root, bg="#282828")
         options_frame.pack(pady=5)
 
-        self.delete_original_var = tk.IntVar()
-        self.delete_original = tk.Checkbutton(options_frame,
-                                              text="Delete original after encryption",
-                                              variable=self.delete_original_var,
-                                              bg="#282828",
-                                              fg="#ebdbb2",
-                                              activebackground="#282828",
-                                              activeforeground="#98971a",
-                                              highlightthickness=0,
-                                              bd=0,
-                                              selectcolor="#1e1e1e")
-        self.delete_original.pack(side=tk.LEFT, padx=5)
+        self.delete_source_var = tk.IntVar()
+        self.delete_source_checkbox = tk.Checkbutton(options_frame,
+                                                     text="Delete source files after operation",
+                                                     variable=self.delete_source_var,
+                                                     bg="#282828",
+                                                     fg="#ebdbb2",
+                                                     activebackground="#282828",
+                                                     activeforeground="#98971a",
+                                                     highlightthickness=0,
+                                                     bd=0,
+                                                     selectcolor="#1e1e1e")
+        self.delete_source_checkbox.pack(side=tk.LEFT, padx=5)
 
         tk.Label(options_frame, text="Compression Level:", **label_opts).pack(side=tk.LEFT, padx=5)
         self.compress_level = tk.StringVar(value="High")
@@ -417,6 +442,18 @@ class EncryptionApp:
         self.status = tk.Label(self.root, text="", **label_opts)
         self.status.pack(pady=5)
 
+    def _toggle_pass_show(self):
+        if self.show_pass.get():
+            self.pass_entry.config(show="")
+        else:
+            self.pass_entry.config(show="*")
+
+    def _toggle_confirm_show(self):
+        if self.show_confirm.get():
+            self.confirm_entry.config(show="")
+        else:
+            self.confirm_entry.config(show="*")
+
     def _setup_logo(self, parent_frame):
         """Setup the animated logo"""
         try:
@@ -449,6 +486,63 @@ class EncryptionApp:
         y = (hs // 2) - (h // 2)
         self.root.geometry(f'{w}x{h}+{x}+{y}')
 
+    def _themed_dialog(self, message, dialog_type="warning"):
+        """Show minimalistic themed dialog"""
+        dialog = tk.Toplevel(self.root)
+        dialog.overrideredirect(True)  # Remove title bar
+        dialog.configure(bg="#1e1e1e", highlightbackground="#98971a", highlightthickness=1)
+        
+        # Auto-size based on message length
+        width = min(400, max(250, len(message) * 8))
+        height = 80 + (message.count('\n') * 20)
+        dialog.geometry(f"{width}x{height}")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Center the dialog
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (width // 2)
+        y = (dialog.winfo_screenheight() // 2) - (height // 2)
+        dialog.geometry(f"{width}x{height}+{x}+{y}")
+        
+        # Message
+        label_opts = {"bg": "#1e1e1e", "fg": "#ebdbb2", "wraplength": width-30}
+        tk.Label(dialog, text=message, **label_opts).pack(pady=15, padx=15)
+        
+        # Buttons frame
+        btn_frame = tk.Frame(dialog, bg="#1e1e1e")
+        btn_frame.pack(pady=5)
+        
+        result = {'answer': False}
+        
+        def on_action():
+            result['answer'] = True
+            dialog.destroy()
+            
+        def on_cancel():
+            result['answer'] = False
+            dialog.destroy()
+        
+        btn_opts = {"bg": "#a9b665", "fg": "#282828", "activebackground": "#b8bb26", "width": 6, "bd": 0}
+        
+        if dialog_type == "warning":
+            tk.Button(btn_frame, text="Continue", command=on_action, **btn_opts).pack(side=tk.LEFT, padx=8)
+            tk.Button(btn_frame, text="Cancel", command=on_cancel, **btn_opts).pack(side=tk.LEFT, padx=8)
+        else:  # error type
+            tk.Button(btn_frame, text="OK", command=on_action, **btn_opts).pack()
+        
+        # Wait for dialog
+        dialog.wait_window()
+        return result['answer']
+
+    def _themed_warning(self, title, message):
+        """Show themed warning dialog (backward compatibility)"""
+        return self._themed_dialog(message, "warning")
+    
+    def _themed_error(self, message):
+        """Show themed error dialog"""
+        return self._themed_dialog(message, "error")
+
     def add_files(self):
         """Add files to the file list"""
         files = filedialog.askopenfilenames()
@@ -477,12 +571,17 @@ class EncryptionApp:
         confirm = self.confirm_entry.get()
         
         if not display_names or not passphrase:
-            messagebox.showerror("Error", "Select files and enter passphrase")
+            self._themed_error("Select files and enter passphrase")
             return
 
         if passphrase != confirm:
-            messagebox.showerror("Error", "Passphrases do not match")
+            self._themed_error("Passphrases do not match")
             return
+
+        # Only warn about weak passphrases during encryption
+        if mode == 'encrypt' and len(passphrase) < 12:
+            if not self._themed_warning("", "Weak passphrase (<12 chars).\nContinue?"):
+                return
 
         # Convert display names back to full paths
         files = []
@@ -507,11 +606,15 @@ class EncryptionApp:
             compress_map = {"None": 0, "Low": 1, "Medium": 5, "High": 9}
             compress_level = compress_map[self.compress_level.get()]
 
+            failures = []
+            decrypt_auth_failures = 0
+            
             for idx, filename in enumerate(files):
                 if not Path(filename).exists():
-                    self._set_status_threadsafe("Operation failed")
-                    return
+                    failures.append(filename)
+                    continue
 
+                success = False
                 if mode == 'encrypt':
                     base_name = Path(filename).stem
                     out_dir = "encrypt_output"
@@ -519,7 +622,7 @@ class EncryptionApp:
                     Path(out_dir).mkdir(exist_ok=True)
                     success = encrypt_file(filename, str(out_file), passphrase, compress_level, self.update_progress)
                     
-                    if success and self.delete_original_var.get():
+                    if success and self.delete_source_var.get():
                         try:
                             Path(filename).unlink()
                         except OSError:
@@ -528,21 +631,31 @@ class EncryptionApp:
                     out_dir = "decrypt_output"
                     success = decrypt_file(filename, out_dir, passphrase, self.update_progress)
                     
-                    if success:
+                    if success and self.delete_source_var.get():
                         try:
                             Path(filename).unlink()
                         except OSError:
                             pass  # File deletion failed, but decryption succeeded
 
                 if not success:
-                    self._set_status_threadsafe("Operation failed")
-                    return
+                    if mode == 'decrypt' and filename.endswith('.frnki'):
+                        decrypt_auth_failures += 1
+                    else:
+                        failures.append(filename)
 
                 self._set_progress_threadsafe(((idx + 1) / total_files) * 100)
 
             self.root.after(0, self._clear_passphrase_secure)
             self.root.after(0, self.clear_files)
-            self.root.after(0, self._show_success_message, mode)
+            
+            # Show appropriate error message
+            if decrypt_auth_failures > 0:
+                self.root.after(0, lambda: self._themed_error("Incorrect passphrase"))
+            elif failures:
+                failure_msg = "\n".join(failures)
+                self.root.after(0, lambda: self._themed_error(f"Failed for:\n{failure_msg}"))
+            else:
+                self.root.after(0, self._show_success_message, mode)
             
         finally:
             # Secure cleanup of passphrase from memory

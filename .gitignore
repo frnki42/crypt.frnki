@@ -1,16 +1,46 @@
+# Development
 CLAUDE.md
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
+
+# Build artifacts
 build/
 dist/
 *.egg-info/
+*.spec.tmp
+
+# Virtual environments
 .venv/
 crypt_env/
-versions/
-*.exe
-*.frnki  # Temp encrypted files
+venv/
+
+# Application outputs
 encrypt_output/
 decrypt_output/
+*.frnki
+
+# Binaries (use releases instead)
+crypt.frnki
+*.exe
+
+# Keep GitHub Actions workflows
+!.github/
+
+# Build metadata
+version_info.txt
+versions/
+
+# OS/Editor
+.DS_Store
+.vscode/
+*.swp
+*.swo
+*~
+
+# Temporary
+*.tmp
+*.bak
+*.orig

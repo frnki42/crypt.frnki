@@ -1,12 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-# PyInstaller spec file for crypt.frnki v1.1.0 - Standalone Version
-# Single file architecture for USB distribution
+# PyInstaller build configuration for crypt.frnki v1.0.1
+# Production build for cross-platform deployment
 
 import os
 
 a = Analysis(
-    ['crypt_frnki_standalone.py'],
+    ['crypt.frnki.py'],
     pathex=[],
     binaries=[],
     datas=[

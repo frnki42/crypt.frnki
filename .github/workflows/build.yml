@@ -1,0 +1,61 @@
+name: Build Executables
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux
+            artifact: crypt.frnki
+          - os: windows-latest
+            name: windows
+            artifact: crypt.frnki.exe
+    
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install pyinstaller
+    
+    - name: Build executable
+      run: pyinstaller build.spec
+    
+    - name: Rename Windows executable
+      if: matrix.os == 'windows-latest'
+      run: |
+        if (Test-Path "dist/crypt.frnki.exe") {
+          # Already has .exe extension
+        } else {
+          Rename-Item "dist/crypt.frnki" "dist/crypt.frnki.exe"
+        }
+      shell: powershell
+    
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: crypt.frnki-${{ matrix.name }}
+        path: dist/${{ matrix.artifact }}
+        
+    - name: Upload to release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: dist/${{ matrix.artifact }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
