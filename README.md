@@ -83,11 +83,18 @@ favicon.{ico,png}   # Application icons
 
 ## Technical Specifications
 
-**File Format:** Custom binary with integrity validation  
+**File Format:** Custom `.frnki` binary format with structured header and chunked encryption  
 **Streaming:** 4KB chunks (memory-efficient for large files)  
 **Compression:** Optional zlib (None/Low/Medium/High)  
 **Platform:** Cross-platform Python 3.8+  
 **Dependencies:** Bundled (cryptography, argon2, PIL)
+
+### .frnki File Format
+Custom encrypted container format designed specifically for crypt.frnki:
+- **Header:** Salt, nonce, compression flags, and metadata
+- **Body:** ChaCha20-Poly1305 encrypted chunks with per-chunk authentication
+- **Security:** Proprietary format prevents analysis with standard tools
+- **Compatibility:** Only readable by crypt.frnki (by design)
 
 ## System Requirements
 
