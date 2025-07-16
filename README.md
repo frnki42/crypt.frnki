@@ -1,6 +1,6 @@
 # crypt.frnki v1.0.1
 
-**Military-grade file encryption with zero dependencies.**
+**Strong file encryption using modern cryptography.**
 
 ## Quick Deploy
 
@@ -52,11 +52,13 @@ favicon.{ico,png}   # Application icons
 - Show/hide passphrase toggles
 
 ### Attack Resistance
-**Brute Force Protection (vs. GPU farms):**
-- Weak passphrases: Seconds (dictionary attacks)
-- 8-character mixed: ~10-25 years (small rig)
-- 12-character mixed: ~28-70 million years (large farm)
-- **12-word phrases: >> Age of universe** (computationally infeasible)
+**Brute Force Protection:**
+- Weak passphrases: Vulnerable to dictionary attacks
+- Short passphrases: Vulnerable to brute force
+- 12+ character mixed passphrases: Computationally expensive to crack
+- Long passphrases/phrases: Practically secure against current attacks
+
+*Note: Actual resistance depends on passphrase strength, available computing power, and future cryptographic developments.*
 
 ## Usage Protocol
 
@@ -87,13 +89,13 @@ favicon.{ico,png}   # Application icons
 **Streaming:** 4KB chunks (memory-efficient for large files)  
 **Compression:** Optional zlib (None/Low/Medium/High)  
 **Platform:** Cross-platform Python 3.8+  
-**Dependencies:** Bundled (cryptography, argon2, PIL)
+**Dependencies:** Bundled into executable (cryptography, argon2, PIL)
 
 ### .frnki File Format
 Custom encrypted container format designed specifically for crypt.frnki:
 - **Header:** Salt, nonce, compression flags, and metadata
 - **Body:** ChaCha20-Poly1305 encrypted chunks with per-chunk authentication
-- **Security:** Proprietary format prevents analysis with standard tools
+- **Security:** Custom format with authenticated encryption
 - **Compatibility:** Only readable by crypt.frnki (by design)
 
 ## System Requirements
