@@ -24,7 +24,7 @@ build.spec          # PyInstaller configuration
 favicon.{ico,png}   # Application icons
 ```
 
-**Releases:** Pre-built binaries available on GitHub
+**Releases:** [Download pre-built binaries from GitHub Releases](https://github.com/frnki42/crypt.frnki/releases/latest)
 - `crypt.frnki` (Linux x64, ~26MB)
 - `crypt.frnki.exe` (Windows x64, ~26MB)
 
